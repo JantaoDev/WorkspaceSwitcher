@@ -1,7 +1,10 @@
 #!/usr/bin/python2
 
-# Workspace switcher dockbarx applet
+# Workspace switcher DockbarX applet
 # Copyright 2018 (c) Sergey Hayevoy <jantao.dev@gmail.com>
+#
+# https://github.com/JantaoDev/WorkspaceSwitcher
+# The code is under GPL3 license.
 
 import wnck, sys, gtk, cairo
 from dockbarx.applets import DockXApplet, DockXAppletDialog 
@@ -13,7 +16,6 @@ CFG_PADDING = 0
 CFG_CELL_SPACING = 3
 CFG_DESK_NAME_PATTERN = "Workspace %n [%x,%y]"
 CFG_ASPECT_RATIO = 1
-
 
 class Desk:
 
