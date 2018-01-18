@@ -280,6 +280,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         
         label = gtk.Label("Color")
         table.attach(label, 0, 2, 1, 2)
+
         self.color_btn = gtk.ColorButton()
         self.color_btn.set_title("Color")
         self.color_btn.set_use_alpha(True)
@@ -356,7 +357,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
 
     def on_color_set(self, widget, key):
         col = widget.get_color()
-        a = widget.get_alpha()
+        a = float(widget.get_alpha())
         val = map(str, [col.red_float, col.green_float, col.blue_float, a / 65535])
         if key in ["color", "active_color"]:
             self.set_setting(key, ','.join(val))
