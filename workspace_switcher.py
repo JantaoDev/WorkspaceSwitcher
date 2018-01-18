@@ -277,16 +277,19 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
     def __init__(self, applet_name):
         DockXAppletDialog.__init__(self, applet_name)
         
-        table = gtk.Table(3, 7)
+        table = gtk.Table(7, 3)
+        table.set_border_width(5)
+        table.set_homogeneous(True)
+        table.set_col_spacings(15)
         self.vbox.pack_start(table)
         
-        self.scroll_enabled_btn = gtk.CheckButton("Change workspace by scroll")
+        self.scroll_enabled_btn = gtk.CheckButton("Change workspaces by mouse scroll")
         self.scroll_enabled_btn.connect("toggled", self.on_checkbox_toggle, "scroll_enabled")
         table.attach(self.scroll_enabled_btn, 0, 2, 0, 1)
         
         label = gtk.Label("Color")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 2, 1, 2)
-
         self.color_btn = gtk.ColorButton()
         self.color_btn.set_title("Color")
         self.color_btn.set_use_alpha(True)
@@ -294,6 +297,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         table.attach(self.color_btn, 2, 3, 1, 2)
 
         label = gtk.Label("Active color")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 2, 2, 3)
         self.active_color_btn = gtk.ColorButton()
         self.active_color_btn.set_title("Active color")
@@ -302,6 +306,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         table.attach(self.active_color_btn, 2, 3, 2, 3)
 
         label = gtk.Label("Padding")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 3, 4)
         self.padding_input = gtk.HScale()
         self.padding_input.set_digits(0)
@@ -311,6 +316,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         table.attach(self.padding_input, 1, 3, 3, 4)
 
         label = gtk.Label("Cell spacing")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 4, 5)
         self.cell_spacing_input = gtk.HScale()
         self.cell_spacing_input.set_digits(0)
@@ -319,7 +325,8 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         self.cell_spacing_input.connect("change-value", self.on_range_value_set, "cell_spacing")
         table.attach(self.cell_spacing_input, 1, 3, 4, 5)
 
-        label = gtk.Label("Aspect ration")
+        label = gtk.Label("Aspect ratio")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 5, 6)
         self.aspect_ratio_input = gtk.HScale()
         self.aspect_ratio_input.set_digits(1)
@@ -329,6 +336,7 @@ class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
         table.attach(self.aspect_ratio_input, 1, 3, 5, 6)
 
         label = gtk.Label("Workspace name pattern")
+        label.set_alignment(0, 0.5)
         table.attach(label, 0, 1, 6, 7)
         self.desk_name_pattern_input = gtk.Entry()
         self.desk_name_pattern_input.set_tooltip_text("%n - workspace number\n%x - workspace column\n%y - workspace row")
