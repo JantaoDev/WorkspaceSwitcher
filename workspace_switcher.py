@@ -68,6 +68,7 @@ class WorkspaceSwitcherApplet(DockXApplet):
             pass
         self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.dockx_size, self.dockx_size)
         self.update_workspaces()
+        self.update_context_menu()
         self.update_icon()
 
     def update_workspaces(self):
@@ -95,6 +96,7 @@ class WorkspaceSwitcherApplet(DockXApplet):
                 self.wall[x][y] = Desk(workspace)
                 self.cols = max(self.cols, x + 1)
                 self.rows = max(self.rows, y + 1)
+        self.update_context_menu()
         self.update_active_workspace()
 
     def update_active_workspace(self):
@@ -124,6 +126,23 @@ class WorkspaceSwitcherApplet(DockXApplet):
         pixbuf = gtk.gdk.pixbuf_new_from_data(self.surface.get_data(), gtk.gdk.COLORSPACE_RGB, True, 8, self.dockx_size, self.dockx_size, self.surface.get_stride())
         self.image.set_from_pixbuf(pixbuf)
 
+    def update_context_menu(self):
+        menu = gtk.Menu()
+        for x in range(self.cols):
+            for y in range(self.rows):
+                item = gtk.MenuItem("Desktop [%d,%d]" % (x + 1, y + 1))
+                item.connect("activate", self.on_context_menu_click, [x, y])
+                item.show_all()
+                menu.append(item)
+        #separator = gtk.SeparatorMenuItem()
+        #separator.show_all()
+        #menu.append(separator)
+        #preference_item = gtk.MenuItem(_("Preference"))
+        #preference_item.connect("activate", self.show_preferences_cb)
+        #preference_item.show_all()
+        #menu.append(preference_item)
+        self.menu = menu
+
     def change_desk(self, direction):
         self.active_row = self.active_row + direction
         if self.active_row >= self.rows:
@@ -143,18 +162,32 @@ class WorkspaceSwitcherApplet(DockXApplet):
         self.update_icon()
 
     def on_click(self, widget, event):
-        step_x = int((self.dockx_size + self.icon_padding) / self.cols)
-        step_y = int((self.dockx_size + self.icon_padding) / self.rows)
-        x = event.x // step_x
-        y = event.y // step_y
-        if (event.x % step_x <= step_x - self.icon_padding) and (event.y % step_y <= step_y - self.icon_padding) and (x < self.cols) and (y < self.rows):
-            self.active_col = x
-            self.active_row = y
-            try:
-                self.wall[self.active_col][self.active_row].activate()
-            except NameError:
-                pass
-            self.update_icon()
+        if event.button == 1:
+            step_x = int((self.dockx_size + self.icon_padding) / self.cols)
+            step_y = int((self.dockx_size + self.icon_padding) / self.rows)
+            x = event.x // step_x
+            y = event.y // step_y
+            if (event.x % step_x <= step_x - self.icon_padding) and (event.y % step_y <= step_y - self.icon_padding) and (x < self.cols) and (y < self.rows):
+                self.active_col = x
+                self.active_row = y
+                try:
+                    self.wall[self.active_col][self.active_row].activate()
+                except NameError:
+                    pass
+                self.update_icon()
+        elif event.button == 2:
+            pass
+        elif event.button == 3:
+            self.menu.popup(None, None, None, event.button, event.time)
+
+    def on_context_menu_click(self, widget, data):
+        self.active_col = data[0]
+        self.active_row = data[1]
+        try:
+            self.wall[self.active_col][self.active_row].activate()
+        except NameError:
+            pass
+        self.update_icon()
 
     def on_scroll(self, widget, event):
         if event.direction == gtk.gdk.SCROLL_UP:
@@ -172,12 +205,10 @@ class WorkspaceSwitcherApplet(DockXApplet):
 
     def on_workspace_created(self, screen, workspace):
         self.update_workspaces()
-        self.update_active_workspace()
         self.update_icon()
 
     def on_workspace_destroyed(self, screen, workspace):
         self.update_workspaces()
-        self.update_active_workspace()
         self.update_icon()
 
 def get_dbx_applet(dbx_dict):
