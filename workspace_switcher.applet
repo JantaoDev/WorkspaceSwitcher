@@ -3,4 +3,4 @@ name=Workspace switcher
 exec=workspace_switcher.py
 
 @description
-This is a DockBarX applet for switching workspaces.
+This is a DockbarX applet for switching workspaces.

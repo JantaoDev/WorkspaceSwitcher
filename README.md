@@ -8,7 +8,7 @@ This is a DockbarX applet for switching workspaces.
 
 Put the files in the folder `~/.dockbarx/applets/`.
 
-Enable the applet in DockBarX settings.
+Enable the applet in DockbarX settings.
 
 ## License
 
