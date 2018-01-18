@@ -4,7 +4,15 @@
 # Copyright 2018 (c) Sergey Hayevoy <jantao.dev@gmail.com>
 
 import wnck, sys, gtk, cairo
-from dockbarx.applets import DockXApplet #, DockXAppletDialog 
+from dockbarx.applets import DockXApplet, DockXAppletDialog 
+
+CFG_SCROLL_ENABLED = True
+CFG_COLOR = "0,0,0,0.1"
+CFG_ACTIVE_COLOR = "1,1,1,1"
+CFG_PADDING = 0
+CFG_CELL_SPACING = 3
+CFG_DESK_NAME_PATTERN = "Workspace %n [%x,%y]"
+CFG_ASPECT_RATIO = 1
 
 
 class Desk:
@@ -38,8 +46,6 @@ class VirtualDesk:
 
 class WorkspaceSwitcherApplet(DockXApplet):
 
-    icon_padding = 3
-
     def __init__(self, dbx_dict):
         DockXApplet.__init__(self, dbx_dict)
 
@@ -50,7 +56,17 @@ class WorkspaceSwitcherApplet(DockXApplet):
         self.screen = wnck.screen_get_default()
         while gtk.events_pending():
             gtk.main_iteration()
+
+        self.cfg_scroll_enabled = self.get_setting("scroll_enabled", CFG_SCROLL_ENABLED)
+        self.cfg_active_color = self.get_setting("active_color", CFG_ACTIVE_COLOR)
+        self.cfg_color = self.get_setting("color", CFG_COLOR)
+        self.cfg_cell_spacing = self.get_setting("cell_spacing", CFG_CELL_SPACING)
+        self.cfg_padding = self.get_setting("padding", CFG_PADDING)
+        self.cfg_desk_name_pattern = self.get_setting("desk_name_pattern", CFG_DESK_NAME_PATTERN)
+        self.cfg_aspect_ratio = self.get_setting("aspect_ratio", CFG_ASPECT_RATIO)
+
         self.update()
+
         self.connect("scroll-event", self.on_scroll)
         self.screen.connect("active-workspace-changed", self.on_active_workspace_changed)
         self.screen.connect("viewports-changed", self.on_viewports_changed)
@@ -62,11 +78,17 @@ class WorkspaceSwitcherApplet(DockXApplet):
         dockx_globals = self.dockx_r().globals
         self.dockx_orient = dockx_globals.settings["dock/position"]
         self.dockx_size = dockx_globals.settings["dock/size"]
+        if self.dockx_orient in ["left", "right"]:
+            self.icon_width = int(self.dockx_size)
+            self.icon_height = int(self.dockx_size * self.cfg_aspect_ratio)
+        else:
+            self.icon_width = int(self.dockx_size / self.cfg_aspect_ratio)
+            self.icon_height = int(self.dockx_size)
         try:
             del self.surface
         except AttributeError:
             pass
-        self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.dockx_size, self.dockx_size)
+        self.surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.icon_width, self.icon_height)
         self.update_workspaces()
         self.update_context_menu()
         self.update_icon()
@@ -112,35 +134,42 @@ class WorkspaceSwitcherApplet(DockXApplet):
                     pass
 
     def update_icon(self):
-        step_x = int((self.dockx_size + self.icon_padding) / self.cols)
-        step_y = int((self.dockx_size + self.icon_padding) / self.rows)
+        step_x = int((self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols)
+        step_y = int((self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows)
+        col = map(float, self.cfg_color.split(','))
+        acol = map(float, self.cfg_active_color.split(','))
         cr = cairo.Context(self.surface)
+        cr.set_operator(cairo.OPERATOR_SOURCE)
+        cr.set_source_rgba(0, 0, 0, 0)
+        cr.rectangle(0, 0, self.icon_width, self.icon_height)
+        cr.fill()
         for x in range(self.cols):
             for y in range(self.rows):
                 if (x == self.active_col) and (y == self.active_row):
-                    cr.set_source_rgb(1, 1, 1)
+                    cr.set_source_rgba(acol[2], acol[1], acol[0], acol[3])
                 else:
-                    cr.set_source_rgb(0, 0.1, 0)
-                cr.rectangle(x * step_x, y * step_y, step_x - self.icon_padding, step_y - self.icon_padding)
+                    cr.set_source_rgba(col[2], col[1], col[0], col[3])
+                cr.rectangle(self.cfg_padding + x * step_x, self.cfg_padding + y * step_y, step_x - self.cfg_cell_spacing, step_y - self.cfg_cell_spacing)
                 cr.fill()
-        pixbuf = gtk.gdk.pixbuf_new_from_data(self.surface.get_data(), gtk.gdk.COLORSPACE_RGB, True, 8, self.dockx_size, self.dockx_size, self.surface.get_stride())
+        pixbuf = gtk.gdk.pixbuf_new_from_data(self.surface.get_data(), gtk.gdk.COLORSPACE_RGB, True, 8, self.icon_width, self.icon_height, self.surface.get_stride())
         self.image.set_from_pixbuf(pixbuf)
 
     def update_context_menu(self):
         menu = gtk.Menu()
         for x in range(self.cols):
             for y in range(self.rows):
-                item = gtk.MenuItem("Desktop [%d,%d]" % (x + 1, y + 1))
+                deskname = self.cfg_desk_name_pattern.replace('%x', str(x + 1)).replace('%y', str(y + 1)).replace('%n', str(x + y * self.cols + 1))
+                item = gtk.MenuItem(deskname)
                 item.connect("activate", self.on_context_menu_click, [x, y])
                 item.show_all()
                 menu.append(item)
-        #separator = gtk.SeparatorMenuItem()
-        #separator.show_all()
-        #menu.append(separator)
-        #preference_item = gtk.MenuItem(_("Preference"))
-        #preference_item.connect("activate", self.show_preferences_cb)
-        #preference_item.show_all()
-        #menu.append(preference_item)
+        separator = gtk.SeparatorMenuItem()
+        separator.show_all()
+        menu.append(separator)
+        preference_item = gtk.MenuItem("Preferences")
+        preference_item.connect("activate", self.on_context_menu_open_preferences)
+        preference_item.show_all()
+        menu.append(preference_item)
         self.menu = menu
 
     def change_desk(self, direction):
@@ -163,11 +192,13 @@ class WorkspaceSwitcherApplet(DockXApplet):
 
     def on_click(self, widget, event):
         if event.button == 1:
-            step_x = int((self.dockx_size + self.icon_padding) / self.cols)
-            step_y = int((self.dockx_size + self.icon_padding) / self.rows)
-            x = event.x // step_x
-            y = event.y // step_y
-            if (event.x % step_x <= step_x - self.icon_padding) and (event.y % step_y <= step_y - self.icon_padding) and (x < self.cols) and (y < self.rows):
+            step_x = int((self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols)
+            step_y = int((self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows)
+            x = (event.x - self.cfg_padding) // step_x
+            y = (event.y - self.cfg_padding) // step_y
+            ox = (event.x - self.cfg_padding) % step_x
+            oy = (event.y - self.cfg_padding) % step_y
+            if (ox <= step_x - self.cfg_cell_spacing) and (oy <= step_y - self.cfg_cell_spacing) and (x < self.cols) and (y < self.rows) and (x >= 0) and (y >= 0):
                 self.active_col = x
                 self.active_row = y
                 try:
@@ -189,7 +220,29 @@ class WorkspaceSwitcherApplet(DockXApplet):
             pass
         self.update_icon()
 
+    def on_context_menu_open_preferences(self, *args):
+        run_applet_dialog('Workspace switcher')
+
+    def on_setting_changed(self, key, value):
+        if key == "scroll_enabled":
+            self.cfg_scroll_enabled = value
+        if key == "active_color":
+            self.cfg_active_color = value
+        if key == "color":
+            self.cfg_color = value
+        if key == "cell_spacing":
+            self.cfg_cell_spacing = value
+        if key == "padding":
+            self.cfg_padding = value
+        if key == "desk_name_pattern":
+            self.cfg_desk_name_pattern = value
+        if key == "aspect_ratio":
+            self.cfg_aspect_ratio = value
+        self.update()
+
     def on_scroll(self, widget, event):
+        if not self.cfg_scroll_enabled:
+            return
         if event.direction == gtk.gdk.SCROLL_UP:
             self.change_desk(-1)
         elif event.direction == gtk.gdk.SCROLL_DOWN:
@@ -211,7 +264,116 @@ class WorkspaceSwitcherApplet(DockXApplet):
         self.update_workspaces()
         self.update_icon()
 
+
+class WorkspaceSwitcherAppletPreferences(DockXAppletDialog):
+    Title = "Workspace Switcher Applet Preferences"
+    
+    def __init__(self, applet_name):
+        DockXAppletDialog.__init__(self, applet_name)
+        
+        table = gtk.Table(3, 7)
+        self.vbox.pack_start(table)
+        
+        self.scroll_enabled_btn = gtk.CheckButton("Change workspace by scroll")
+        self.scroll_enabled_btn.connect("toggled", self.on_checkbox_toggle, "scroll_enabled")
+        table.attach(self.scroll_enabled_btn, 0, 2, 0, 1)
+        
+        label = gtk.Label("Color")
+        table.attach(label, 0, 2, 1, 2)
+        self.color_btn = gtk.ColorButton()
+        self.color_btn.set_title("Color")
+        self.color_btn.set_use_alpha(True)
+        self.color_btn.connect("color-set", self.on_color_set, "color")
+        table.attach(self.color_btn, 2, 3, 1, 2)
+
+        label = gtk.Label("Active color")
+        table.attach(label, 0, 2, 2, 3)
+        self.active_color_btn = gtk.ColorButton()
+        self.active_color_btn.set_title("Active color")
+        self.active_color_btn.set_use_alpha(True)
+        self.active_color_btn.connect("color-set", self.on_color_set, "active_color")
+        table.attach(self.active_color_btn, 2, 3, 2, 3)
+
+        label = gtk.Label("Padding")
+        table.attach(label, 0, 1, 3, 4)
+        self.padding_input = gtk.HScale()
+        self.padding_input.set_digits(0)
+        self.padding_input.set_range(0, 10)
+        self.padding_input.set_increments(1, 5)
+        self.padding_input.connect("change-value", self.on_range_value_set, "padding")
+        table.attach(self.padding_input, 1, 3, 3, 4)
+
+        label = gtk.Label("Cell spacing")
+        table.attach(label, 0, 1, 4, 5)
+        self.cell_spacing_input = gtk.HScale()
+        self.cell_spacing_input.set_digits(0)
+        self.cell_spacing_input.set_range(0, 10)
+        self.cell_spacing_input.set_increments(1, 5)
+        self.cell_spacing_input.connect("change-value", self.on_range_value_set, "cell_spacing")
+        table.attach(self.cell_spacing_input, 1, 3, 4, 5)
+
+        label = gtk.Label("Aspect ration")
+        table.attach(label, 0, 1, 5, 6)
+        self.aspect_ratio_input = gtk.HScale()
+        self.aspect_ratio_input.set_digits(1)
+        self.aspect_ratio_input.set_range(0.3, 3.0)
+        self.aspect_ratio_input.set_increments(0.1, 1)
+        self.aspect_ratio_input.connect("change-value", self.on_range_value_set, "aspect_ratio")
+        table.attach(self.aspect_ratio_input, 1, 3, 5, 6)
+
+        label = gtk.Label("Workspace name pattern")
+        table.attach(label, 0, 1, 6, 7)
+        self.desk_name_pattern_input = gtk.Entry()
+        self.desk_name_pattern_input.set_tooltip_text("%n - workspace number\n%x - workspace column\n%y - workspace row")
+        self.desk_name_pattern_input.connect("changed", self.on_entry_value_set, "desk_name_pattern")
+        table.attach(self.desk_name_pattern_input, 1, 3, 6, 7)
+
+        self.show_all()
+
+    def run(self):
+        self.scroll_enabled_btn.set_active(self.get_setting("scroll_enabled", CFG_SCROLL_ENABLED))
+        
+        col_raw = self.get_setting("color", CFG_COLOR)
+        col = map(float, col_raw.split(','))
+        self.color_btn.set_color(gtk.gdk.Color(int(col[0] * 65535), int(col[1] * 65535), int(col[2] * 65535)))
+        self.color_btn.set_alpha(int(col[3] * 65535))
+        
+        acol_raw = self.get_setting("active_color", CFG_ACTIVE_COLOR)
+        acol = map(float, acol_raw.split(','))
+        self.active_color_btn.set_color(gtk.gdk.Color(int(acol[0] * 65535), int(acol[1] * 65535), int(acol[2] * 65535)))
+        self.active_color_btn.set_alpha(int(acol[3] * 65535))
+        
+        self.padding_input.set_value(self.get_setting("padding", CFG_PADDING))
+        self.cell_spacing_input.set_value(self.get_setting("cell_spacing", CFG_CELL_SPACING))
+        self.aspect_ratio_input.set_value(self.get_setting("aspect_ratio", CFG_ASPECT_RATIO))
+        self.desk_name_pattern_input.set_text(self.get_setting("desk_name_pattern", CFG_DESK_NAME_PATTERN))
+
+        return DockXAppletDialog.run(self)
+
+    def on_checkbox_toggle(self, widget, key):
+        if key == "scroll_enabled":
+            self.set_setting("scroll_enabled", widget.get_active())
+
+    def on_color_set(self, widget, key):
+        col = widget.get_color()
+        a = widget.get_alpha()
+        val = map(str, [col.red_float, col.green_float, col.blue_float, a / 65535])
+        if key in ["color", "active_color"]:
+            self.set_setting(key, ','.join(val))
+
+    def on_range_value_set(self, widget, scroll, value, key):
+        if key in ["padding", "cell_spacing", "aspect_ratio"]:
+            self.set_setting(key, value)
+
+    def on_entry_value_set(self, widget, key):
+        if key == "desk_name_pattern":
+            self.set_setting(key, widget.get_text())
+
 def get_dbx_applet(dbx_dict):
     applet = WorkspaceSwitcherApplet(dbx_dict)
     return applet
 
+def run_applet_dialog(name):
+    dialog = WorkspaceSwitcherAppletPreferences(name)
+    dialog.run()
+    dialog.destroy()
