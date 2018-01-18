@@ -77,7 +77,7 @@ class WorkspaceSwitcherApplet(DockXApplet):
     def update(self):
         dockx_globals = self.dockx_r().globals
         self.dockx_orient = dockx_globals.settings["dock/position"]
-        self.dockx_size = dockx_globals.settings["dock/size"]
+        self.dockx_size = max(dockx_globals.settings["dock/size"], 16)
         if self.dockx_orient in ["left", "right"]:
             self.icon_width = int(self.dockx_size)
             self.icon_height = int(self.dockx_size * self.cfg_aspect_ratio)
@@ -134,8 +134,10 @@ class WorkspaceSwitcherApplet(DockXApplet):
                     pass
 
     def update_icon(self):
-        step_x = int((self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols)
-        step_y = int((self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows)
+        step_x = float(self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols
+        step_y = float(self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows
+        if (step_x < 1) or (step_y < 1):
+            return
         col = map(float, self.cfg_color.split(','))
         acol = map(float, self.cfg_active_color.split(','))
         cr = cairo.Context(self.surface)
@@ -149,7 +151,9 @@ class WorkspaceSwitcherApplet(DockXApplet):
                     cr.set_source_rgba(acol[2], acol[1], acol[0], acol[3])
                 else:
                     cr.set_source_rgba(col[2], col[1], col[0], col[3])
-                cr.rectangle(self.cfg_padding + x * step_x, self.cfg_padding + y * step_y, step_x - self.cfg_cell_spacing, step_y - self.cfg_cell_spacing)
+                xpos = self.cfg_padding + x * step_x
+                ypos = self.cfg_padding + y * step_y
+                cr.rectangle(round(xpos), round(ypos), round(xpos + step_x) - round(xpos) - self.cfg_cell_spacing, round(ypos + step_y) - round(ypos) - self.cfg_cell_spacing)
                 cr.fill()
         pixbuf = gtk.gdk.pixbuf_new_from_data(self.surface.get_data(), gtk.gdk.COLORSPACE_RGB, True, 8, self.icon_width, self.icon_height, self.surface.get_stride())
         self.image.set_from_pixbuf(pixbuf)
@@ -192,15 +196,17 @@ class WorkspaceSwitcherApplet(DockXApplet):
 
     def on_click(self, widget, event):
         if event.button == 1:
-            step_x = int((self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols)
-            step_y = int((self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows)
-            x = (event.x - self.cfg_padding) // step_x
-            y = (event.y - self.cfg_padding) // step_y
-            ox = (event.x - self.cfg_padding) % step_x
-            oy = (event.y - self.cfg_padding) % step_y
-            if (ox <= step_x - self.cfg_cell_spacing) and (oy <= step_y - self.cfg_cell_spacing) and (x < self.cols) and (y < self.rows) and (x >= 0) and (y >= 0):
-                self.active_col = x
-                self.active_row = y
+            step_x = float(self.icon_width - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.cols
+            step_y = float(self.icon_height - self.cfg_padding * 2 + self.cfg_cell_spacing) / self.rows
+            if (step_x < 1) or (step_y < 1):
+                return
+            x = (event.x - self.cfg_padding) / step_x
+            y = (event.y - self.cfg_padding) / step_y
+            ox = (1 - x + int(x)) * step_x
+            oy = (1 - y + int(y)) * step_y
+            if (ox > self.cfg_cell_spacing) and (oy > self.cfg_cell_spacing) and (x < self.cols) and (y < self.rows) and (x >= 0) and (y >= 0):
+                self.active_col = int(x)
+                self.active_row = int(y)
                 try:
                     self.wall[self.active_col][self.active_row].activate()
                 except NameError:
