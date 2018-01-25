@@ -96,6 +96,9 @@ class WorkspaceSwitcherApplet(DockXApplet):
         self.update_icon()
 
     def update_workspaces(self):
+        self.workspaces_count = self.screen.get_workspace_count()
+        self.workspaces_width = self.screen.get_active_workspace().get_width()
+        self.workspaces_height = self.screen.get_active_workspace().get_height()
         workspaces = self.screen.get_workspaces()
         if len(workspaces) == 1 and workspaces[0].is_virtual():
             workspace = workspaces[0]
@@ -261,7 +264,12 @@ class WorkspaceSwitcherApplet(DockXApplet):
         self.update_icon()
 
     def on_viewports_changed(self, screen):
-        self.update_active_workspace()
+        aw = screen.get_active_workspace()
+        if (self.workspaces_count != screen.get_workspace_count()) or \
+           (self.workspaces_count == 1 and (self.workspaces_width != aw.get_width() or self.workspaces_height != aw.get_height())):
+            self.update_workspaces()
+        else:
+            self.update_active_workspace()
         self.update_icon()
 
     def on_workspace_created(self, screen, workspace):
